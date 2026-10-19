@@ -1,0 +1,4 @@
+# dsh-skill-panel bundle: mount the host plugin.
+- insert:
+    - id: dsh-skill-panel
+      name: dsh-skill-panel
