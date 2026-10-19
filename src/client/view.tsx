@@ -52,19 +52,37 @@ function fallbackCopy(text: string, done: () => void): void {
  * Uses execCommand('insertText') so Lexical's beforeinput handler sees it.
  * Returns false when no composer is on screen (caller falls back to copying).
  */
+function composerRoot(): HTMLElement | null {
+  if (typeof document === 'undefined') return null
+  return document.querySelector('[contenteditable="true"][data-lexical-editor]') as HTMLElement | null
+}
+
+/**
+ * Move the caret to the very end of the composer without selecting anything,
+ * so a second insert APPENDS instead of replacing what is already typed.
+ */
+function caretToEnd(root: HTMLElement): void {
+  const sel = window.getSelection()
+  if (sel === null) return
+  const range = document.createRange()
+  range.selectNodeContents(root)
+  range.collapse(false)          // false = collapse to END
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
+/**
+ * Insert /skill-name into the DSH composer (Lexical contenteditable).
+ * Uses execCommand('insertText') so Lexical's beforeinput handler sees it.
+ * Falls back to copying when no composer is on screen.
+ */
 function insertToComposer(text: string): boolean {
-  if (typeof document === 'undefined') return false
-  const root = document.querySelector('[contenteditable="true"][data-lexical-editor]') as HTMLElement | null
+  const root = composerRoot()
   if (root === null) return false
   try {
     root.focus()
-    const sel = window.getSelection()
-    if (sel !== null) {
-      sel.selectAllChildren(root)
-      sel.collapseToEnd()
-    }
-    const ok = document.execCommand('insertText', false, text)
-    return ok
+    caretToEnd(root)
+    return document.execCommand('insertText', false, text + ' ')
   } catch {
     return false
   }
