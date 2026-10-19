@@ -27,9 +27,9 @@ const T_LOADING = '\u8bfb\u53d6\u4e2d...'
 const T_SEARCH = '\u641c\u7d22'
 const T_EMPTY = '\u6ca1\u6709\u53ef\u7528\u7684\u6280\u80fd'
 const T_NOMATCH = '\u6ca1\u6709\u5339\u914d\u7684\u6280\u80fd'
-const T_COPIED = '\u5df2\u590d\u5236'
+const T_COPIED = '\u5df2\u63d2\u5165'
 const T_REFRESH = '\u5237\u65b0'
-const T_CLICK_HINT = '\u70b9\u51fb\u590d\u5236'
+const T_CLICK_HINT = '\u70b9\u51fb\u5f15\u7528'
 
 function fallbackCopy(text: string, done: () => void): void {
   try {
@@ -44,6 +44,29 @@ function fallbackCopy(text: string, done: () => void): void {
     done()
   } catch {
     /* ignore */
+  }
+}
+
+/**
+ * Insert /skill-name into the DSH composer (Lexical contenteditable).
+ * Uses execCommand('insertText') so Lexical's beforeinput handler sees it.
+ * Returns false when no composer is on screen (caller falls back to copying).
+ */
+function insertToComposer(text: string): boolean {
+  if (typeof document === 'undefined') return false
+  const root = document.querySelector('[contenteditable="true"][data-lexical-editor]') as HTMLElement | null
+  if (root === null) return false
+  try {
+    root.focus()
+    const sel = window.getSelection()
+    if (sel !== null) {
+      sel.selectAllChildren(root)
+      sel.collapseToEnd()
+    }
+    const ok = document.execCommand('insertText', false, text)
+    return ok
+  } catch {
+    return false
   }
 }
 
@@ -99,6 +122,10 @@ export function SkillView() {
     const done = () => {
       setCopied(name)
       window.setTimeout(() => setCopied(''), 1200)
+    }
+    if (insertToComposer(text)) {
+      done()
+      return
     }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done))
