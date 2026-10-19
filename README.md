@@ -20,6 +20,14 @@ dsh plugin --profile desktop add link:<path-to-this-repo>
 
 Then restart the desktop client. For the web profile use `--profile web`.
 
+## Configuration
+
+| Variable | Effect |
+| --- | --- |
+| `DSH_SKILL_DIRS` | Extra skill roots, separated by the OS path delimiter (`;` on Windows, `:` on POSIX). Scanned before the two defaults. |
+
+The host caches the scan for 10 seconds. The **refresh** button in the panel forces a rescan (`GET /skill-panel/skills?refresh=1`).
+
 ## meta.yaml
 
 Each skill directory may carry a `meta.yaml` next to its `SKILL.md`:

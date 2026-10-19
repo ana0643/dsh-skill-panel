@@ -20,6 +20,14 @@ dsh plugin --profile desktop add link:<本仓库路径>
 
 装完重启桌面客户端。Web 环境把 `--profile desktop` 换成 `--profile web`。
 
+## 配置
+
+| 环境变量 | 作用 |
+| --- | --- |
+| `DSH_SKILL_DIRS` | 额外的技能根目录，用系统路径分隔符（Windows 是 `;`，POSIX 是 `:`）分隔。排在两个默认目录之前扫描。 |
+
+Host 端有 10 秒缓存；面板上的**刷新**按钮会强制重扫（`GET /skill-panel/skills?refresh=1`）。
+
 ## meta.yaml
 
 每个技能目录可以在 `SKILL.md` 旁边放一份 `meta.yaml`：

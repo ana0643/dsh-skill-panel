@@ -1,26 +1,37 @@
-
-/** Skill panel body. */
-import { useEffect, useMemo, useState } from 'react'
+/**
+ * Skill panel body: fetch the skill list from the host route and render it.
+ * Click a row to copy /skill-name.
+ */
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 interface Skill { name: string; title: string; summary: string; tag: string }
 
-const TAG_COLOR: Record<string, string> = {
-  '嵌入式': '#4d6bfe',
-  '设计': '#c4629a',
-  '写作': '#b8862f',
-  '开发流程': '#3a8f5f',
-  '办公科研': '#7a5cc4',
-  '工具': '#5d7d8a',
-  '协作': '#a0603c',
+interface Payload {
+  skills?: Skill[]
+  scannedAt?: number
+  errors?: string[]
 }
 
-const T_ALL = '全部'
-const T_LOADING = '读取中...'
-const T_SEARCH = '搜索'
-const T_EMPTY = '没有可用的技能'
-const COPIED = '已复制'
+const TAG_COLOR: Record<string, string> = {
+  '\u5d4c\u5165\u5f0f': '#4d6bfe',
+  '\u8bbe\u8ba1': '#c4629a',
+  '\u5199\u4f5c': '#b8862f',
+  '\u5f00\u53d1\u6d41\u7a0b': '#3a8f5f',
+  '\u529e\u516c\u79d1\u7814': '#7a5cc4',
+  '\u5de5\u5177': '#5d7d8a',
+  '\u534f\u4f5c': '#a0603c',
+}
 
-function fallbackCopy(text: string, done: () => void) {
+const T_ALL = '\u5168\u90e8'
+const T_LOADING = '\u8bfb\u53d6\u4e2d...'
+const T_SEARCH = '\u641c\u7d22'
+const T_EMPTY = '\u6ca1\u6709\u53ef\u7528\u7684\u6280\u80fd'
+const T_NOMATCH = '\u6ca1\u6709\u5339\u914d\u7684\u6280\u80fd'
+const T_COPIED = '\u5df2\u590d\u5236'
+const T_REFRESH = '\u5237\u65b0'
+const T_CLICK_HINT = '\u70b9\u51fb\u590d\u5236'
+
+function fallbackCopy(text: string, done: () => void): void {
   try {
     const ta = document.createElement('textarea')
     ta.value = text
@@ -36,24 +47,35 @@ function fallbackCopy(text: string, done: () => void) {
   }
 }
 
-const T_NOMATCH = '没有匹配的技能'
-
 export function SkillView() {
   const [skills, setSkills] = useState<Skill[] | null>(null)
+  const [errors, setErrors] = useState<string[]>([])
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [tag, setTag] = useState('')
   const [copied, setCopied] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const load = useCallback(async (force: boolean) => {
+    setBusy(true)
+    try {
+      const base = typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://localhost/'
+      const rel = force ? 'skill-panel/skills?refresh=1' : 'skill-panel/skills'
+      const res = await fetch(new URL(rel, base).href, { credentials: 'same-origin' })
+      const data = (await res.json()) as Payload
+      setSkills(Array.isArray(data.skills) ? data.skills : [])
+      setErrors(Array.isArray(data.errors) ? data.errors : [])
+      setError('')
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }, [])
 
   useEffect(() => {
-    let alive = true
-    const base = typeof document !== 'undefined' && document.baseURI ? document.baseURI : 'http://localhost/'
-    fetch(new URL('skill-panel/skills', base).href, { credentials: 'same-origin' })
-      .then((r) => r.json())
-      .then((d: { skills?: Skill[] }) => { if (alive) setSkills(Array.isArray(d.skills) ? d.skills : []) })
-      .catch((e: unknown) => { if (alive) setError(e instanceof Error ? e.message : String(e)) })
-    return () => { alive = false }
-  }, [])
+    void load(false)
+  }, [load])
 
   const list = skills ?? []
 
@@ -74,7 +96,10 @@ export function SkillView() {
 
   const copy = (name: string) => {
     const text = '/' + name
-    const done = () => { setCopied(name); window.setTimeout(() => setCopied(''), 1200) }
+    const done = () => {
+      setCopied(name)
+      window.setTimeout(() => setCopied(''), 1200)
+    }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done))
     } else {
@@ -85,42 +110,75 @@ export function SkillView() {
   return (
     <div className="dsh-sp-root">
       <div className="dsh-sp-bar">
-        <input
-          className="dsh-sp-input"
-          placeholder={skills === null ? T_LOADING : T_SEARCH + ' ' + list.length}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
+        <div className="dsh-sp-searchrow">
+          <input
+            className="dsh-sp-input"
+            placeholder={skills === null ? T_LOADING : T_SEARCH + ' (' + list.length + ')'}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <button
+            type="button"
+            className="dsh-sp-refresh"
+            title={T_REFRESH}
+            disabled={busy}
+            onClick={() => void load(true)}
+          >
+            {'\u21bb'}
+          </button>
+        </div>
         {tags.length > 0 && (
           <div className="dsh-sp-chips">
             <button type="button" className={'dsh-sp-chip' + (tag === '' ? ' is-on' : '')} onClick={() => setTag('')}>{T_ALL}</button>
             {tags.map(([t, n]) => (
-              <button key={t} type="button" className={'dsh-sp-chip' + (tag === t ? ' is-on' : '')} onClick={() => setTag(tag === t ? '' : t)}>
+              <button
+                key={t}
+                type="button"
+                className={'dsh-sp-chip' + (tag === t ? ' is-on' : '')}
+                onClick={() => setTag(tag === t ? '' : t)}
+              >
                 {t} {n}
               </button>
             ))}
           </div>
         )}
       </div>
+
       <div className="dsh-sp-list">
         {shown.map((s) => (
-          <div key={s.name} className="dsh-sp-row" role="button" tabIndex={0}
-            title={'点击复制 /' + s.name}
+          <div
+            key={s.name}
+            className="dsh-sp-row"
+            role="button"
+            tabIndex={0}
+            title={T_CLICK_HINT + ' /' + s.name}
             onClick={() => copy(s.name)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copy(s.name) } }}>
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                copy(s.name)
+              }
+            }}
+          >
             <div className="dsh-sp-head">
               <span className="dsh-sp-dot" style={{ background: TAG_COLOR[s.tag] ?? '#888' }} />
               <strong className="dsh-sp-title">{s.title}</strong>
               <span className="dsh-sp-tag">{s.tag}</span>
             </div>
             {s.summary !== '' && <div className="dsh-sp-summary">{s.summary}</div>}
-            <div className="dsh-sp-name">{s.name}{copied === s.name ? '  ✓ ' + COPIED : ''}</div>
+            <div className="dsh-sp-name">
+              {s.name}
+              {copied === s.name ? '  ' + T_COPIED : ''}
+            </div>
           </div>
         ))}
         {skills !== null && shown.length === 0 && (
           <div className="dsh-sp-empty">{list.length === 0 ? T_EMPTY : T_NOMATCH}</div>
         )}
         {error !== '' && <div className="dsh-sp-error">{error}</div>}
+        {errors.length > 0 && (
+          <div className="dsh-sp-errors">{errors.join('; ')}</div>
+        )}
       </div>
     </div>
   )
